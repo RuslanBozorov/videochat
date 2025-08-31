@@ -19,7 +19,7 @@
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <script>
     const roomId = "room-123"; // istasangiz URL'dan o‘qib olish mumkin
-    const socket = io(); // serverga avtomatik ulanadi
+    const socket = io("https://videochat-2-te5u.onrender.com"); // serverga avtomatik ulanadi
     let pc, localStream;
 
     const iceServers = [

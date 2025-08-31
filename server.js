@@ -1,33 +1,34 @@
-const http = require("http");
 const express = require("express");
-const { Server } = require("socket.io");
+const http = require("http");
+const socketIO = require("socket.io");
+const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" },
-});
+const io = socketIO(server);
+
+// ✅ frontendni public papkadan xizmat qilamiz
+app.use(express.static(path.join(__dirname, "public")));
 
 io.on("connection", (socket) => {
   console.log("Foydalanuvchi ulandi:", socket.id);
 
-  socket.on("join", (roomId) => {
-    socket.join(roomId);
-    socket.to(roomId).emit("peer-joined", socket.id);
+  socket.on("offer", (data) => {
+    socket.broadcast.emit("offer", data);
   });
 
-  socket.on("signal", ({ roomId, data }) => {
-    if (data.to) {
-      io.to(data.to).emit("signal", { from: socket.id, ...data });
-    } else {
-      socket.to(roomId).emit("signal", { from: socket.id, ...data });
-    }
+  socket.on("answer", (data) => {
+    socket.broadcast.emit("answer", data);
+  });
+
+  socket.on("candidate", (data) => {
+    socket.broadcast.emit("candidate", data);
   });
 
   socket.on("disconnect", () => {
-    console.log("Foydalanuvchi chiqdi:", socket.id);
+    console.log("Foydalanuvchi chiqib ketdi:", socket.id);
   });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server ${PORT} portda ishlayapti`));
+server.listen(PORT, () => console.log(`Server ${PORT}-portda ishlayapti`));
