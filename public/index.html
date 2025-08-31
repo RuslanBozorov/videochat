@@ -1,76 +1,76 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Video Chat Demo</title>
-  <style>
-    video { width: 45%; border: 2px solid #444; margin: 5px; }
-    button { margin: 5px; padding: 8px 12px; }
-  </style>
+  <meta charset="UTF-8">
+  <title>VideoChat</title>
 </head>
 <body>
-  <h2>Video Chat Demo</h2>
-  <button id="start">Start</button>
-  <button id="call">Call</button>
-  <br />
-  <video id="local" autoplay playsinline muted></video>
-  <video id="remote" autoplay playsinline></video>
+  <h1>VideoChat</h1>
+  <video id="localVideo" autoplay muted playsinline></video>
+  <video id="remoteVideo" autoplay playsinline></video>
 
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
   <script>
-    const roomId = "room-123"; // istasangiz URL'dan o‘qib olish mumkin
-    const socket = io("https://videochat-2-te5u.onrender.com"); // serverga avtomatik ulanadi
-    let pc, localStream;
+    const socket = io();
 
-    const iceServers = [
-      { urls: "stun:stun.l.google.com:19302" }, // Google STUN server
-    ];
+    const localVideo = document.getElementById("localVideo");
+    const remoteVideo = document.getElementById("remoteVideo");
+    let peerConnection;
 
-    async function createPC() {
-      pc = new RTCPeerConnection({ iceServers });
-      pc.onicecandidate = (e) => {
-        if (e.candidate) {
-          socket.emit("signal", { roomId, data: { type: "candidate", payload: e.candidate } });
-        }
-      };
-      pc.ontrack = (e) => {
-        document.getElementById("remote").srcObject = e.streams[0];
-      };
-      localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-    }
+    // media olish
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      .then(stream => {
+        localVideo.srcObject = stream;
+        peerConnection = new RTCPeerConnection();
 
-    document.getElementById("start").onclick = async () => {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      document.getElementById("local").srcObject = localStream;
-      await createPC();
-      socket.emit("join", roomId);
-    };
+        // stream qo‘shish
+        stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
 
-    socket.on("peer-joined", async () => {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      socket.emit("signal", { roomId, data: { type: "offer", payload: offer } });
+        // remote streamni olish
+        peerConnection.ontrack = event => {
+          remoteVideo.srcObject = event.streams[0];
+        };
+
+        // ice candidate yuborish
+        peerConnection.onicecandidate = event => {
+          if (event.candidate) {
+            socket.emit("candidate", event.candidate);
+          }
+        };
+      });
+
+    // offer yaratish va yuborish
+    socket.on("offer", async (offer) => {
+      if (!peerConnection) return;
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      socket.emit("answer", answer);
     });
 
-    socket.on("signal", async ({ type, payload, from }) => {
-      if (type === "offer") {
-        if (!pc) await createPC();
-        await pc.setRemoteDescription(new RTCSessionDescription(payload));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        socket.emit("signal", { roomId, data: { type: "answer", payload: answer, to: from } });
-      } else if (type === "answer") {
-        await pc.setRemoteDescription(new RTCSessionDescription(payload));
-      } else if (type === "candidate") {
-        try { await pc.addIceCandidate(payload); } catch {}
+    // answer olish
+    socket.on("answer", async (answer) => {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    });
+
+    // candidate olish
+    socket.on("candidate", async (candidate) => {
+      try {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.error("Candidate qo‘shishda xato:", err);
       }
     });
 
-    document.getElementById("call").onclick = async () => {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      socket.emit("signal", { roomId, data: { type: "offer", payload: offer } });
-    };
+    // offer yaratish
+    async function startCall() {
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      socket.emit("offer", offer);
+    }
+
+    // avtomatik qo‘ng‘iroq boshlash
+    setTimeout(startCall, 2000);
   </script>
 </body>
 </html>
