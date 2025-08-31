@@ -9,29 +9,27 @@
   <video id="localVideo" autoplay muted playsinline></video>
   <video id="remoteVideo" autoplay playsinline></video>
 
-  <script src="/socket.io/socket.io.js"></script>
+  <!-- Render serverga ulanadigan script -->
+  <script src="https://videochat-2-te5u.onrender.com/socket.io/socket.io.js"></script>
   <script>
-    const socket = io();
+    // ✅ To‘g‘ri manzil bilan ulanamiz
+    const socket = io("https://videochat-2-te5u.onrender.com");
 
     const localVideo = document.getElementById("localVideo");
     const remoteVideo = document.getElementById("remoteVideo");
     let peerConnection;
 
-    // media olish
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       .then(stream => {
         localVideo.srcObject = stream;
         peerConnection = new RTCPeerConnection();
 
-        // stream qo‘shish
         stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
 
-        // remote streamni olish
         peerConnection.ontrack = event => {
           remoteVideo.srcObject = event.streams[0];
         };
 
-        // ice candidate yuborish
         peerConnection.onicecandidate = event => {
           if (event.candidate) {
             socket.emit("candidate", event.candidate);
@@ -39,7 +37,6 @@
         };
       });
 
-    // offer yaratish va yuborish
     socket.on("offer", async (offer) => {
       if (!peerConnection) return;
       await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
@@ -48,12 +45,10 @@
       socket.emit("answer", answer);
     });
 
-    // answer olish
     socket.on("answer", async (answer) => {
       await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
     });
 
-    // candidate olish
     socket.on("candidate", async (candidate) => {
       try {
         await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
@@ -62,14 +57,12 @@
       }
     });
 
-    // offer yaratish
     async function startCall() {
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
       socket.emit("offer", offer);
     }
 
-    // avtomatik qo‘ng‘iroq boshlash
     setTimeout(startCall, 2000);
   </script>
 </body>
