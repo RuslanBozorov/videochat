@@ -1,20 +1,16 @@
-import http from "http";
-import express from "express";
-import { Server } from "socket.io";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const http = require("http");
+const express = require("express");
+const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
-
-// statik fayllar (index.html) uchun
-app.use(express.static(path.join(__dirname, "public")));
+const io = new Server(server, {
+  cors: { origin: "*" },
+});
 
 io.on("connection", (socket) => {
+  console.log("Foydalanuvchi ulandi:", socket.id);
+
   socket.on("join", (roomId) => {
     socket.join(roomId);
     socket.to(roomId).emit("peer-joined", socket.id);
@@ -29,9 +25,9 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    // optional: notify peers
+    console.log("Foydalanuvchi chiqdi:", socket.id);
   });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log("🚀 Signaling server running on port " + PORT));
+server.listen(PORT, () => console.log(`Server ${PORT} portda ishlayapti`));
