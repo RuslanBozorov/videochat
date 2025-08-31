@@ -1,37 +1,54 @@
+// server.js
 const express = require("express");
 const http = require("http");
-const socketIO = require("socket.io");
+const { Server } = require("socket.io");
 const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIO(server);
+const io = new Server(server, {
+  // agar frontend alohida domen bo'lsa, shu yerga frontend domenini qo'ying
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
 
-// ✅ frontendni public papkadan xizmat qilamiz
+// serve static frontend from /public
 app.use(express.static(path.join(__dirname, "public")));
 
 io.on("connection", (socket) => {
-  console.log("Foydalanuvchi ulandi:", socket.id);
+  console.log("Connected:", socket.id);
 
-  // offer signal
-  socket.on("offer", (data) => {
-    socket.broadcast.emit("offer", data);
+  socket.on("join", (roomId) => {
+    socket.join(roomId);
+    console.log(`${socket.id} joined ${roomId}`);
+    // notify other peers in room that a new peer joined
+    socket.to(roomId).emit("peer-joined", socket.id);
   });
 
-  // answer signal
-  socket.on("answer", (data) => {
-    socket.broadcast.emit("answer", data);
+  // Generic signaling: offer/answer/candidate
+  socket.on("offer", ({ to, payload }) => {
+    if (!to) return;
+    io.to(to).emit("offer", { from: socket.id, payload });
   });
 
-  // candidate signal
-  socket.on("candidate", (data) => {
-    socket.broadcast.emit("candidate", data);
+  socket.on("answer", ({ to, payload }) => {
+    if (!to) return;
+    io.to(to).emit("answer", { from: socket.id, payload });
+  });
+
+  socket.on("candidate", ({ to, payload }) => {
+    if (!to) return;
+    io.to(to).emit("candidate", { from: socket.id, payload });
   });
 
   socket.on("disconnect", () => {
-    console.log("Foydalanuvchi chiqib ketdi:", socket.id);
+    console.log("Disconnected:", socket.id);
+    // notify rooms that this socket left (optional)
+    // you could emit to peers to remove UI etc.
   });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`✅ Server ${PORT}-portda ishlayapti`));
+server.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
